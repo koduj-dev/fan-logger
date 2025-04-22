@@ -3,3 +3,9 @@ demo.js
 *.png
 .vscode/
 .idea/
+
+test/
+.gitignore
+.npmignore
+README.md~
+jest.config.js
