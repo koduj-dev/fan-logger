@@ -2,7 +2,7 @@
 # 📦 fan-logger
 
 ![npm version](https://img.shields.io/npm/v/fan-logger.svg)
-![license](https://img.shields.io/npm/l/fan-logger.svg)
+![npm](https://img.shields.io/npm/l/fan-logger)
 ![node](https://img.shields.io/node/v/fan-logger.svg)
 
 Simple, pretty terminal logger with timestamps, colors, scopes, and zero fluff.  
@@ -149,6 +149,32 @@ Output:
 
 ---
 
+## 🛠️ log.processInfo([title])
+Logs useful diagnostic information about the current Node.js process and system.
+
+```js
+log.processInfo();             // defaults to "Process Info"
+log.processInfo('Build Host'); // custom title
+```
+
+Example output:
+```terminaloutput
+=============================== [ PROCESS INFO ] ===============================
+[16:57:25.401] [INFO] 🖥️ CPU model: AMD Ryzen 7 9800X3D 8-Core Processor @ 5233MHz
+[16:57:25.401] [INFO] 🧵 CPU cores (logical): 16
+[16:57:25.401] [INFO] 🧠 Total RAM: 60.4 GB
+[16:57:25.401] [INFO] 💾 Free RAM: 40.1 GB
+[16:57:25.401] [INFO] 🏃 Node heap limit: 1456 MB
+[16:57:25.401] [INFO] 🔢 Node version: v10.24.1
+[16:57:25.401] [INFO] 📦 V8 version: 6.8.275.32-node.59
+[16:57:25.401] [INFO] 📎 Raw exec args: ["--expose-gc"]
+================================================================================
+```
+
+> 💡 Great for CLI tools, build scripts, and CI logs. Helps quickly identify runtime environment, memory usage, and debug flags.
+
+---
+
 ## 📎 Environment flags
 
 Set `DEBUG=true` to enable `.debug(...)` output
@@ -174,6 +200,7 @@ DEBUG=true node demo.js
 | `child(name)`                                       | Alias for `scope(...)`                           |
 | `section(title, width=80, colorFn = chalk.magenta)` | Prints a visible section heading                 |
 | `separator(width=80, colorFn = chalk.magenta)`      | Prints a separator with defined length and color |
+| `processInfo([name])`                               | Print diagnostic table for process               |
 
 ---
 

@@ -156,4 +156,37 @@ describe('fan-logger', () => {
         const printed = console.log.mock.calls[0][0];
         expect(stripAnsi(printed)).toMatch(/^={40}$/);
     });
+
+    test('processInfo("Runtime") should print full system info with custom title', () => {
+        log.processInfo('Runtime');
+
+        const output = console.log.mock.calls.map(call => stripAnsi(call[0])).join('\n');
+
+        expect(output).toMatch(/\[ RUNTIME \]/);
+        expect(output).toMatch(/CPU model/);
+        expect(output).toMatch(/CPU cores/);
+        expect(output).toMatch(/Total RAM/);
+        expect(output).toMatch(/Free RAM/);
+        expect(output).toMatch(/Node heap limit/);
+        expect(output).toMatch(/Node version/);
+        expect(output).toMatch(/V8 version/);
+        expect(output).toMatch(/Raw exec args/);
+    });
+
+    test('processInfo() without args should print full info with no title header', () => {
+        log.processInfo();
+
+        const output = console.log.mock.calls.map(call => stripAnsi(call[0])).join('\n');
+
+        expect(output).toMatch(/\[ PROCESS INFO \]/);
+
+        expect(output).toMatch(/CPU model/);
+        expect(output).toMatch(/CPU cores/);
+        expect(output).toMatch(/Total RAM/);
+        expect(output).toMatch(/Free RAM/);
+        expect(output).toMatch(/Node heap limit/);
+        expect(output).toMatch(/Node version/);
+        expect(output).toMatch(/V8 version/);
+        expect(output).toMatch(/Raw exec args/);
+    });
 });

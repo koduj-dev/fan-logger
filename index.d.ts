@@ -29,6 +29,14 @@ interface Logger {
      * Alias for `scope`. Inspired by loggers like `winston`, `pino`, etc.
      */
     child: (namespace: string) => Logger;
+
+    /**
+     * Prints detailed system and Node.js runtime information.
+     * Includes CPU, memory, heap size, Node/V8 version, and exec args.
+     *
+     * @param title Optional title to be shown above the info block
+     */
+    processInfo: (title?: string) => void;
 }
 
 declare const logger: Logger;

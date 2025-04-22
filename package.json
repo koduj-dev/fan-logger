@@ -1,6 +1,6 @@
 {
   "name": "fan-logger",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Simple, pretty terminal logger with timestamps, colors, scopes, and zero fluff.\nInspired by the need for readable logs in CLI tools and concurrent builds.",
   "main": "index.js",
   "types": "index.d.ts",
@@ -25,7 +25,7 @@
     "concurrency-log"
   ],
   "author": "Filip Majerík (koduj.dev)",
-  "license": "MIT",
+  "license": "ISC",
   "dependencies": {
     "chalk": "^4.1.2"
   },

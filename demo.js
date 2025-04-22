@@ -45,3 +45,5 @@ log.section('', 40);
 log.section('release', 60, chalk.cyan);
 
 log.fatal("FATAL ERROR!");
+
+log.processInfo();

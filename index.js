@@ -1,5 +1,7 @@
 const chalk = require('chalk');
 const util = require('util');
+const os = require("os");
+const v8 = require("v8");
 
 function isDebugEnabled() {
     return process.env.DEBUG === 'true' || process.env.DEBUG === '1';
@@ -34,6 +36,23 @@ function createLogger(namespace = '') {
         }
     }
 
+    function processInfo(title = 'Process Info') {
+        const cpuInfo = os.cpus()[0];
+
+        printSection(title);
+        logWith('INFO', chalk.cyan, `🖥️  CPU model: ${cpuInfo.model} @ ${cpuInfo.speed}MHz`);
+        logWith('INFO', chalk.cyan, `🧵 CPU cores (logical): ${os.cpus().length}`);
+        logWith('INFO', chalk.cyan, `🧠 Total RAM: ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(1)} GB`);
+        logWith('INFO', chalk.cyan, `💾 Free RAM: ${(os.freemem() / 1024 / 1024 / 1024).toFixed(1)} GB`);
+        logWith('INFO', chalk.cyan, `🏃 Node heap limit: ${Math.round(v8.getHeapStatistics().heap_size_limit / 1024 / 1024)} MB`);
+
+        logWith('INFO', chalk.cyan, `🔢 Node version: ${process.version}`);
+        logWith('INFO', chalk.cyan, `📦 V8 version: ${process.versions.v8}`);
+
+        logWith('INFO', chalk.cyan, `📎 Raw exec args: ${JSON.stringify(process.execArgv)}`);
+        printSection();
+    }
+
     return {
         log: logWith,
         info: (...args) => logWith('INFO', chalk.cyan, ...args),
@@ -48,6 +67,7 @@ function createLogger(namespace = '') {
         separator: (width = 80, color = chalk.gray) => printSection('', width, color),
         scope: (childNamespace) => createLogger(namespace ? `${namespace}:${childNamespace}` : childNamespace),
         child: (childNamespace) => createLogger(namespace ? `${namespace}:${childNamespace}` : childNamespace),
+        processInfo,
     };
 }
 
