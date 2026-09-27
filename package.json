@@ -32,6 +32,10 @@
         "import": "./dist/index.d.mts",
         "require": "./dist/index.d.ts"
       },
+      "browser": {
+        "import": "./dist/index.browser.mjs",
+        "require": "./dist/index.browser.js"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
@@ -48,7 +52,7 @@
     "node": ">=10"
   },
   "scripts": {
-    "build": "tsup && node scripts/postbuild.mjs",
+    "build": "npm run clean && tsup && node scripts/postbuild.mjs",
     "dev": "tsup --watch",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "typecheck": "tsc --noEmit",
@@ -72,5 +76,6 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^5.0.2"
-  }
+  },
+  "browser": "./dist/index.browser.js"
 }

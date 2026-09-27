@@ -10,7 +10,7 @@
  * Set FAN_NODE10 to a Node 10 binary to include the Node 10 leg.
  */
 import { execFileSync, execSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -132,6 +132,27 @@ createLogger('X').fatal(own('boom'));
 `);
     step(`TypeScript (nodenext + verbatimModuleSyntax) with ${tag}`, () => run('npx', ['tsc'], tsDir));
 }
+
+/* --------------------------------------------------- browser bundling leg */
+
+const browserDir = project('browser-consumer', { type: 'module' }, [tarball, 'esbuild@0.27']);
+writeFileSync(join(browserDir, 'entry.mjs'), `
+import log, { colors } from 'fan-logger';
+log.info('browser');
+log.log('BUILD', colors.blueBright, 'bundled');
+`);
+step('Bundler: platform=browser resolves the browser build (failed in 0.2.0)', () => {
+    run('npx', ['esbuild', 'entry.mjs', '--bundle', '--platform=browser',
+                '--format=esm', '--outfile=bundle.js'], browserDir);
+
+    const bundle = readFileSync(join(browserDir, 'bundle.js'), 'utf8');
+    for (const builtin of ['util', 'os', 'v8']) {
+        const pattern = new RegExp(`require\\(["']${builtin}["']\\)|from ?["']${builtin}["']`);
+        if (pattern.test(bundle)) throw new Error(`browser bundle still references "${builtin}"`);
+    }
+    // The browser build must not carry Node's process diagnostics either.
+    if (bundle.includes('getHeapStatistics')) throw new Error('browser bundle carries v8 heap code');
+});
 
 /* -------------------------------------------------------------- Node 10 leg */
 

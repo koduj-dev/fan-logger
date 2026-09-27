@@ -2,16 +2,15 @@
  * fan-logger - simple, pretty terminal logger with timestamps, colors, scopes,
  * and zero fluff.
  *
- * Zero runtime dependencies. Ships a CommonJS build (Node 10+) and an ESM build
- * (modern Node, bundlers, TypeScript).
+ * Zero runtime dependencies. Ships a CommonJS build (Node 10+), an ESM build
+ * (modern Node, bundlers, TypeScript) and a browser build that degrades to
+ * plain console logs.
  *
- * Note on imports: bare specifiers are deliberate. Node 10 does not understand
- * the `node:` prefix, and the CommonJS build has to keep working there.
+ * Everything runtime-specific lives behind ./runtime, which the browser build
+ * swaps for ./runtime.browser.
  */
-import util from 'util';
-import os from 'os';
-import v8 from 'v8';
-
+import * as runtime from './runtime';
+import type { Channel, Target } from './runtime';
 import { colors, stripAnsi, combine, type ColorFn } from './colors';
 
 export { colors, combine, stripAnsi };
@@ -62,7 +61,7 @@ interface ResolvedConfig {
 const config: ResolvedConfig = { level: null, timestamp: null, color: null };
 
 function env(name: string): string | undefined {
-    // `process` may be absent in non-Node runtimes; stay defensive.
+    // `process` is absent in browsers; stay defensive.
     if (typeof process === 'undefined' || !process.env) return undefined;
     const value = process.env[name];
     return value === undefined || value === '' ? undefined : value;
@@ -93,6 +92,18 @@ function timestampMode(): TimestampMode | (() => string) {
     return 'local';
 }
 
+function useColor(target: Target): boolean {
+    if (config.color === true) return true;
+    if (config.color === false) return false;
+
+    if (env('NO_COLOR') !== undefined) return false;
+    const force = env('FORCE_COLOR');
+    if (force !== undefined) return force !== '0' && force !== 'false';
+    if (env('TERM') === 'dumb') return false;
+
+    return runtime.autoColor(target);
+}
+
 /* --------------------------------------------------------------- timestamp */
 
 function pad(value: number, width: number): string {
@@ -115,51 +126,14 @@ function formatTimestamp(): string {
     if (mode === 'iso') return now.toISOString();
     if (mode === 'utc') {
         return (
-            pad(now.getUTCHours(), 2) +
-            ':' +
-            pad(now.getUTCMinutes(), 2) +
-            ':' +
-            pad(now.getUTCSeconds(), 2) +
-            '.' +
-            pad(now.getUTCMilliseconds(), 3)
+            pad(now.getUTCHours(), 2) + ':' + pad(now.getUTCMinutes(), 2) + ':' +
+            pad(now.getUTCSeconds(), 2) + '.' + pad(now.getUTCMilliseconds(), 3)
         );
     }
     return (
-        pad(now.getHours(), 2) +
-        ':' +
-        pad(now.getMinutes(), 2) +
-        ':' +
-        pad(now.getSeconds(), 2) +
-        '.' +
-        pad(now.getMilliseconds(), 3)
+        pad(now.getHours(), 2) + ':' + pad(now.getMinutes(), 2) + ':' +
+        pad(now.getSeconds(), 2) + '.' + pad(now.getMilliseconds(), 3)
     );
-}
-
-/* ------------------------------------------------------------------ output */
-
-type Target = 'out' | 'err';
-
-function supportsColor(target: Target): boolean {
-    if (config.color === true) return true;
-    if (config.color === false) return false;
-
-    if (env('NO_COLOR') !== undefined) return false;
-    const force = env('FORCE_COLOR');
-    if (force !== undefined) return force !== '0' && force !== 'false';
-    if (env('TERM') === 'dumb') return false;
-
-    if (typeof process === 'undefined') return false;
-    const stream = target === 'err' ? process.stderr : process.stdout;
-    return Boolean(stream && stream.isTTY);
-}
-
-function write(target: Target, line: string): void {
-    const text = supportsColor(target) ? line : stripAnsi(line);
-    if (target === 'err') {
-        console.error(text);
-    } else {
-        console.log(text);
-    }
 }
 
 /* ------------------------------------------------------------------ logger */
@@ -198,41 +172,69 @@ interface Spec {
     color: ColorFn;
     weight: number;
     target: Target;
+    channel: Channel;
 }
 
 const SPECS = {
-    info: { label: 'INFO', color: colors.cyan, weight: LEVEL_WEIGHT.info, target: 'out' },
-    success: { label: 'OK', color: colors.green, weight: LEVEL_WEIGHT.info, target: 'out' },
-    warn: { label: 'WARN', color: colors.yellow, weight: LEVEL_WEIGHT.warn, target: 'out' },
-    error: { label: 'ERR', color: colors.red, weight: LEVEL_WEIGHT.error, target: 'err' },
+    info: { label: 'INFO', color: colors.cyan, weight: LEVEL_WEIGHT.info, target: 'out', channel: 'info' },
+    success: { label: 'OK', color: colors.green, weight: LEVEL_WEIGHT.info, target: 'out', channel: 'log' },
+    warn: { label: 'WARN', color: colors.yellow, weight: LEVEL_WEIGHT.warn, target: 'out', channel: 'warn' },
+    error: { label: 'ERR', color: colors.red, weight: LEVEL_WEIGHT.error, target: 'err', channel: 'error' },
     fatal: {
         label: 'FATAL',
         color: combine(colors.bgRed, colors.white, colors.bold),
         weight: LEVEL_WEIGHT.fatal,
         target: 'err',
+        channel: 'error',
     },
-    debug: { label: 'DEBUG', color: colors.gray, weight: LEVEL_WEIGHT.debug, target: 'out' },
+    debug: { label: 'DEBUG', color: colors.gray, weight: LEVEL_WEIGHT.debug, target: 'out', channel: 'debug' },
 } satisfies Record<string, Spec>;
 
 export function createLogger(namespace = ''): Logger {
     function emit(spec: Spec, args: unknown[]): void {
         const stamp = formatTimestamp();
-        const prefix = stamp ? colors.dim('[' + stamp + ']') + ' ' : '';
-        const ns = namespace ? '[' + namespace + '] ' : '';
-        const tag = spec.color('[' + spec.label + ']');
-        write(spec.target, prefix + ns + tag + ' ' + util.format(...args));
+        const prefix =
+            (stamp ? colors.dim('[' + stamp + ']') + ' ' : '') +
+            (namespace ? '[' + namespace + '] ' : '') +
+            spec.color('[' + spec.label + ']') + ' ';
+
+        runtime.emit({
+            target: spec.target,
+            channel: spec.channel,
+            prefix,
+            args,
+            color: useColor(spec.target),
+        });
+    }
+
+    function raw(line: string): void {
+        runtime.emit({
+            target: 'out',
+            channel: 'log',
+            prefix: line,
+            args: [],
+            color: useColor('out'),
+        });
     }
 
     function logWith(label: string, color: ColorFn, ...args: unknown[]): void {
         if (currentWeight() > INFO_WEIGHT) return;
+
+        const spec: Spec = {
+            label: String(label),
+            color: typeof color === 'function' ? color : (text) => text,
+            weight: INFO_WEIGHT,
+            target: 'out',
+            channel: 'log',
+        };
+
         // Defensive: a missing colour argument used to crash with
         // "color is not a function"; treat it as part of the message instead.
         if (typeof color !== 'function') {
-            const rest = color === undefined ? args : [color, ...args];
-            emit({ label: String(label), color: (t) => t, weight: INFO_WEIGHT, target: 'out' }, rest);
+            emit(spec, color === undefined ? args : [color, ...args]);
             return;
         }
-        emit({ label: String(label), color, weight: INFO_WEIGHT, target: 'out' }, args);
+        emit(spec, args);
     }
 
     function leveled(spec: Spec) {
@@ -253,17 +255,17 @@ export function createLogger(namespace = ''): Logger {
 
     function printSection(name = '', width = 80, color: ColorFn = colors.magenta): void {
         if (currentWeight() > INFO_WEIGHT) return;
-        const safeWidth = Number.isFinite(width) ? Math.max(0, Math.floor(width as number)) : 80;
-        const paint = typeof color === 'function' ? color : (t: string) => t;
+        const safeWidth = Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 80;
+        const paint = typeof color === 'function' ? color : (text: string) => text;
 
         if (name && String(name).length > 0) {
             const title = ' [ ' + String(name).toUpperCase() + ' ] ';
             const total = Math.max(safeWidth, title.length + 4);
             const remaining = total - title.length;
             const left = Math.floor(remaining / 2);
-            write('out', paint('='.repeat(left) + title + '='.repeat(remaining - left)));
+            raw(paint('='.repeat(left) + title + '='.repeat(remaining - left)));
         } else {
-            write('out', paint('='.repeat(safeWidth)));
+            raw(paint('='.repeat(safeWidth)));
         }
     }
 
@@ -273,29 +275,13 @@ export function createLogger(namespace = ''): Logger {
         const info = leveled(SPECS.info);
         printSection(title);
 
-        // os.cpus() legitimately returns [] on some containers and VMs.
-        const cpus = typeof os.cpus === 'function' ? os.cpus() || [] : [];
-        const cpu = cpus[0];
-        info(
-            cpu
-                ? '\u{1F5A5}️  CPU model: ' + cpu.model + ' @ ' + cpu.speed + 'MHz'
-                : '\u{1F5A5}️  CPU model: unknown (os.cpus() reported none)'
-        );
-        info('\u{1F9F5} CPU cores (logical): ' + (cpus.length || 'unknown'));
-        info('\u{1F9E0} Total RAM: ' + (os.totalmem() / 1024 / 1024 / 1024).toFixed(1) + ' GB');
-        info('\u{1F4BE} Free RAM: ' + (os.freemem() / 1024 / 1024 / 1024).toFixed(1) + ' GB');
-
-        let heap = 'unknown';
-        try {
-            heap = Math.round(v8.getHeapStatistics().heap_size_limit / 1024 / 1024) + ' MB';
-        } catch {
-            /* not every runtime exposes v8 heap statistics */
+        const lines = runtime.diagnostics();
+        if (lines === null) {
+            info('ℹ️  Process diagnostics are not available on this platform');
+        } else {
+            for (const line of lines) info(line);
         }
-        info('\u{1F3C3} Node heap limit: ' + heap);
 
-        info('\u{1F522} Node version: ' + process.version);
-        info('\u{1F4E6} V8 version: ' + process.versions.v8);
-        info('\u{1F4CE} Raw exec args: ' + JSON.stringify(process.execArgv));
         printSection();
     }
 
@@ -359,7 +345,31 @@ export function reset(): void {
 
 /* ---------------------------------------------------------- default export */
 
-const root = createLogger();
+/**
+ * The default export: a root logger that also carries the module-level helpers,
+ * so `log.setLevel(...)` works identically in CommonJS and ESM.
+ */
+export interface RootLogger extends Logger {
+    configure: typeof configure;
+    setLevel: typeof setLevel;
+    getLevel: typeof getLevel;
+    reset: typeof reset;
+    createLogger: typeof createLogger;
+    colors: typeof colors;
+    combine: typeof combine;
+    stripAnsi: typeof stripAnsi;
+}
+
+const root: RootLogger = Object.assign(createLogger(), {
+    configure,
+    setLevel,
+    getLevel,
+    reset,
+    createLogger,
+    colors,
+    combine,
+    stripAnsi,
+});
 
 export const log = root.log;
 export const info = root.info;

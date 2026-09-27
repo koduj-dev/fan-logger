@@ -12,6 +12,8 @@ Inspired by the need for readable logs in CLI tools and concurrent builds.
 - **Works everywhere:** CommonJS *and* ESM, plus first-class TypeScript types.
 - **Runs on Node 10 → Node 24.** The published CommonJS bundle is ES2018, and CI
   actually executes it on Node 10.24.1 rather than hoping.
+- **Terminal first, browser-safe.** Bundled for a browser it degrades to plain
+  `console.*` calls instead of failing to resolve Node built-ins.
 
 ---
 
@@ -84,6 +86,10 @@ node app.js 2>/dev/null       # mute failures, keep the normal output
 
 Colors are emitted only when the target stream is a TTY. Piped or redirected output is
 plain text automatically — no escape-code noise in your log files.
+
+In a browser there is no stdout/stderr, so the levels map onto the console instead:
+`info` → `console.info`, `warn` → `console.warn`, `error`/`fatal` → `console.error`,
+`debug` → `console.debug`, everything else → `console.log`.
 
 ---
 
@@ -325,14 +331,28 @@ ESM imports.
 
 ## 🔧 Compatibility
 
-| Consumer                                       | Entry point       |
-|------------------------------------------------|-------------------|
-| `require('fan-logger')` on Node 10+            | `dist/index.js`   |
-| `import` in Node 12.17+ / bundlers             | `dist/index.mjs`  |
-| TypeScript (`node10`, `node16`, `bundler`)     | matching `.d.ts`  |
+| Consumer                                     | Entry point                |
+|----------------------------------------------|----------------------------|
+| `require('fan-logger')` on Node 10+          | `dist/index.js`            |
+| `import` in Node 12.17+ / bundlers           | `dist/index.mjs`           |
+| Bundled for a browser (`browser` condition)  | `dist/index.browser.mjs`   |
+| TypeScript (`node10`, `node16`, `bundler`)   | matching `.d.ts`           |
 
-fan-logger is a **terminal** logger: it uses Node's `util`, `os` and `v8`, so it targets
-Node rather than browsers or edge runtimes. Bundling for `platform=node` works out of the box.
+### In the browser
+
+fan-logger is a **terminal** logger first — timestamps, ANSI colors, `[SCOPE]` prefixes.
+Bundled for a browser it keeps the same API and falls back to plain console logs:
+
+- Output goes to `console.info` / `warn` / `error` / `debug` / `log`.
+- ANSI is dropped, because devtools would render the escape codes as garbage.
+- Arguments are handed to the console **untouched**, so objects stay expandable in
+  devtools instead of being flattened into a string. `%s` / `%d` format strings still work.
+- `processInfo()` reports what the browser can tell it (cores, device memory, JS heap
+  limit, user agent) instead of Node's `os`/`v8` data.
+- No Node built-in ever reaches the bundle — `npm run check:es2018` asserts that.
+
+Nothing to configure: the `browser` export condition (and the legacy `browser` field for
+webpack 4 / browserify) points bundlers at that build automatically.
 
 ---
 
@@ -340,7 +360,7 @@ Node rather than browsers or edge runtimes. Bundling for `platform=node` works o
 
 ```bash
 npm install
-npm run build        # tsup -> dist/index.js (CJS, ES2018) + dist/index.mjs (ESM) + types
+npm run build        # tsup -> CJS (ES2018) + ESM + browser builds + types
 npm test             # vitest
 npm run verify       # typecheck, build, tests, Node 10 gate, package lint, consumer matrix
 node demo.js         # CommonJS demo
@@ -349,12 +369,13 @@ node demo.mjs        # ESM demo
 
 `npm run verify` is what `prepublishOnly` runs. It includes:
 
-- `check:es2018` — parses the built CommonJS bundle to prove it is ES2018 and free of
-  `node:` specifiers or globals Node 10 lacks.
+- `check:es2018` — parses the built bundles to prove the CommonJS entry is ES2018 and
+  free of `node:` specifiers or globals Node 10 lacks, and that the browser bundle
+  references no Node built-ins.
 - `check:package` — [publint](https://publint.dev) + [are-the-types-wrong](https://arethetypeswrong.github.io).
-- `check:consumers` — installs the real tarball into throwaway CommonJS, ESM and
-  TypeScript projects (against both chalk 4 and chalk 5) and asserts it imports and runs.
-  Set `FAN_NODE10` to a Node 10 binary to include the Node 10 leg.
+- `check:consumers` — installs the real tarball into throwaway CommonJS, ESM, TypeScript
+  (against both chalk 4 and chalk 5) and browser-bundling projects, and asserts it
+  imports and runs. Set `FAN_NODE10` to a Node 10 binary to include the Node 10 leg.
 
 ---
 
