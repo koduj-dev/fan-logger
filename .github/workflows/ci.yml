@@ -24,7 +24,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
-      - name: Node 10 compatibility gate (ES2018 syntax, no node: specifiers)
+      - name: "Node 10 compatibility gate (ES2018 syntax, no node: specifiers)"
         run: npm run check:es2018
       - name: Package metadata (publint + are-the-types-wrong)
         run: npm run check:package
