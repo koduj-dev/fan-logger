@@ -1,39 +1,76 @@
 {
   "name": "fan-logger",
-  "version": "0.2.0",
-  "description": "Simple, pretty terminal logger with timestamps, colors, scopes, and zero fluff.\nInspired by the need for readable logs in CLI tools and concurrent builds.",
-  "main": "index.js",
-  "types": "index.d.ts",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/koduj-dev/fan-logger"
-  },
-  "scripts": {
-    "test": "jest"
-  },
-  "files": [
-    "LICENSE",
-    "index.js",
-    "index.d.ts"
-  ],
+  "version": "1.0.0",
+  "description": "Simple, pretty terminal logger with timestamps, colors, scopes, and zero fluff. Zero dependencies, works on Node 10+ (CommonJS) and modern ESM/TypeScript projects.",
   "keywords": [
     "console.log",
     "log",
     "logger",
     "timestamp",
     "pretty",
-    "concurrency-log"
+    "concurrency-log",
+    "cli",
+    "scope",
+    "namespace",
+    "zero-dependency"
   ],
-  "author": "Filip Majerík (koduj.dev)",
-  "license": "ISC",
-  "dependencies": {
-    "chalk": "^4.1.2"
+  "homepage": "https://github.com/koduj-dev/fan-logger#readme",
+  "bugs": "https://github.com/koduj-dev/fan-logger/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koduj-dev/fan-logger.git"
   },
+  "license": "ISC",
+  "author": "Filip Majerík (koduj.dev)",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts"
+      },
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
   "engines": {
     "node": ">=10"
   },
+  "scripts": {
+    "build": "tsup && node scripts/postbuild.mjs",
+    "dev": "tsup --watch",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check:es2018": "node scripts/check-es2018.mjs",
+    "check:smoke": "node scripts/smoke-node10.cjs",
+    "check:package": "publint --strict && attw --pack .",
+    "check:consumers": "node scripts/check-consumers.mjs",
+    "verify": "npm run typecheck && npm run build && npm run test && npm run check:es2018 && npm run check:smoke && npm run check:package && npm run check:consumers",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run verify"
+  },
   "devDependencies": {
-    "jest": "^26.6.3",
-    "strip-ansi": "^6.0.1"
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@types/node": "^26.6.3",
+    "@vitest/coverage-v8": "^5.0.2",
+    "acorn": "^8.18.0",
+    "publint": "^0.3.24",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2"
   }
 }

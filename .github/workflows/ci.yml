@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - name: Node 10 compatibility gate (ES2018 syntax, no node: specifiers)
+        run: npm run check:es2018
+      - name: Package metadata (publint + are-the-types-wrong)
+        run: npm run check:package
+
+  node10:
+    name: Run the CommonJS build on Node 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # actions/setup-node no longer reliably provides EOL runtimes, so fetch
+      # the last Node 10 release directly. This is the whole point of the
+      # es2018 target - assert it, do not assume it.
+      - name: Fetch Node 10.24.1
+        run: |
+          curl -fsSL https://nodejs.org/dist/v10.24.1/node-v10.24.1-linux-x64.tar.xz -o /tmp/node10.tar.xz
+          mkdir -p /tmp/node10 && tar -xf /tmp/node10.tar.xz -C /tmp/node10 --strip-components=1
+          /tmp/node10/bin/node --version
+
+      - name: Smoke-test the CommonJS build on Node 10
+        run: /tmp/node10/bin/node scripts/smoke-node10.cjs
+
+      - name: Consumer matrix (CJS, ESM, TypeScript, Node 10)
+        run: npm run check:consumers
+        env:
+          FAN_NODE10: /tmp/node10/bin/node
